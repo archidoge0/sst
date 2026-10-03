@@ -1,0 +1,46 @@
+name: "ghav human: check"
+"on":
+  push:
+    branches:
+      - ghav/dev/6642
+    paths:
+      - .ghav/human
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ">=1.23.2"
+          cache: true
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Download Go modules
+        run: go mod download
+      - name: Check types
+        run: cd platform && bun tsc --noEmit
+      - name: Build platform
+        run: cp .ghav-merge/platform/scripts/build platform/scripts/build && cp .ghav-merge/platform/support/bridge-task/Dockerfile platform/support/bridge-task/Dockerfile && cp .ghav-merge/platform/support/bridge-task/.gitignore platform/support/bridge-task/.gitignore && ./platform/scripts/build
+        env:
+          DOCKER_PUSH: false
+      - name: Run Go tests
+        run: go test -vet=all ./...
+      - name: Build CLI
+        run: go build -o sst ./cmd/sst
+      - name: Build docs
+        run: cp .ghav-merge/www/astro.config.mjs www/astro.config.mjs && cp .ghav-merge/www/generate.ts www/generate.ts && cd www && bun run build
